@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Orca: Deep Runner</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐋</text></svg>">
+</head>
+<body>
+
+<!-- Game Canvas -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- HUD Overlay -->
+<div id="hud">
+  <div class="hud-left">
+    <div class="hud-label">SCORE</div>
+    <div class="hud-value" id="hud-score">0</div>
+    <div class="hud-label">LEVEL</div>
+    <div class="hud-value" id="hud-level">1</div>
+  </div>
+  <div class="hud-center">
+    <div class="hud-label">COMBO</div>
+    <div class="hud-value gold" id="hud-combo">x1</div>
+    <div class="hunger-bar-container">
+      <div class="hunger-bar" id="hunger-bar"></div>
+    </div>
+  </div>
+  <div class="hud-right">
+    <div class="hud-label">LIVES</div>
+    <div class="lives-container" id="lives-container"></div>
+  </div>
+</div>
+
+<!-- Combo Flash Display -->
+<div id="combo-display"></div>
+
+<!-- Boss Health Bar -->
+<div id="boss-bar">
+  <div class="boss-name"></div>
+  <div class="boss-bar-outer">
+    <div class="boss-bar-inner" id="boss-bar-inner"></div>
+  </div>
+</div>
+
+<!-- Mute Indicator -->
+<div id="mute-indicator">🔇 MUTED</div>
+
+<!-- Main Menu -->
+<div id="menu">
+  <div class="game-title">ORCA</div>
+  <div class="game-subtitle">DEEP RUNNER</div>
+
+  <div class="menu-box">
+    <button class="menu-btn" id="btn-start">START GAME</button>
+
+    <div class="high-scores-box">
+      <div class="high-scores-title">HIGH SCORES</div>
+    </div>
+
+    <div class="how-to-play">
+      SWIM: WASD / ARROWS<br>
+      DASH: SHIFT / J<br>
+      PAUSE: P / ESC &nbsp;|&nbsp; MUTE: M<br>
+      MOBILE: TOUCH DRAG TO SWIM
+    </div>
+  </div>
+</div>
+
+<!-- Overlay (Pause / Game Over / Level Complete) -->
+<div id="overlay" class="hidden">
+  <div class="overlay-title paused">PAUSED</div>
+  <div class="overlay-stats"></div>
+
+  <div id="initials-input" style="display:none;">
+    <input type="text" id="initials-input" maxlength="3" placeholder="AAA" autocomplete="off" />
+  </div>
+
+  <div class="menu-box" style="min-width:240px;">
+    <button class="menu-btn" id="btn-resume">RESUME</button>
+    <button class="menu-btn" id="btn-restart">RESTART</button>
+    <button class="menu-btn" id="btn-main-menu">MAIN MENU</button>
+    <button class="menu-btn" id="btn-submit-score" style="display:none;">SUBMIT SCORE</button>
+  </div>
+</div>
+
+<!-- Script Tags — dependency order -->
+<script type="module" src="js/engine/physics.js"></script>
+<script type="module" src="js/engine/pool.js"></script>
+<script type="module" src="js/engine/input.js"></script>
+<script type="module" src="js/systems/save.js"></script>
+<script type="module" src="js/systems/levels.js"></script>
+<script type="module" src="js/systems/audio.js"></script>
+<script type="module" src="js/systems/particles.js"></script>
+<script type="module" src="js/systems/hud.js"></script>
+<script type="module" src="js/entities/orca.js"></script>
+<script type="module" src="js/entities/prey.js"></script>
+<script type="module" src="js/entities/predator.js"></script>
+<script type="module" src="js/main.js"></script>
+
+</body>
+</html>

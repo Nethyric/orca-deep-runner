@@ -1,0 +1,3109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Orca: Deep Runner</title>
+  <style>
+/* Deep Ocean Visual Identity — Orca: Deep Runner */
+
+* {
+    margin: 0;
+    padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --deep-bg: #030810;
+  --ocean-mid: #061a2e;
+  --ocean-surface: #0d2d4a;
+  --bioluminescent: #00e5ff;
+  --bioluminescent-dim: #007a8a;
+  --danger: #ff3b3b;
+  --gold: #ffd700;
+  --prey-fast: #ff9f43;
+  --prey-mid: #2ed573;
+  --prey-slow: #1e90ff;
+  --text-primary: #e0f7ff;
+  --text-dim: #6b8fa3;
+}
+
+body {
+  background: var(--deep-bg);
+  overflow: hidden;
+  font-family: 'Courier New', Courier, monospace;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#gameCanvas {
+  display: block;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* HUD Overlay */
+#hud {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#hud.visible { opacity: 1; }
+
+.hud-left, .hud-center, .hud-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hud-center { align-items: center; }
+.hud-right { align-items: flex-end; }
+
+.hud-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.hud-value {
+  font-size: 22px;
+  color: var(--bioluminescent);
+  text-shadow: 0 0 12px var(--bioluminescent);
+  letter-spacing: 1px;
+}
+
+.hud-value.gold { color: var(--gold); text-shadow: 0 0 12px var(--gold); }
+
+.hud-value.danger { color: var(--danger); text-shadow: 0 0 12px var(--danger); }
+
+/* Hunger Bar */
+.hunger-bar-container {
+  width: 180px;
+  height: 8px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid var(--bioluminescent-dim);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.hunger-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--danger), var(--gold), #2ed573);
+  border-radius: 4px;
+  transition: width 0.1s;
+  box-shadow: 0 0 8px var(--bioluminescent);
+}
+
+/* Lives */
+.lives-container {
+  display: flex;
+  gap: 6px;
+}
+
+.orca-icon {
+  width: 20px;
+  height: 12px;
+  background: var(--bioluminescent);
+  border-radius: 60% 40% 40% 60% / 60% 60% 40% 40%;
+  box-shadow: 0 0 8px var(--bioluminescent);
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+.orca-icon.lost { opacity: 0.2; }
+
+/* Menu Screen */
+#menu {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  background: linear-gradient(180deg, var(--deep-bg) 0%, var(--ocean-mid) 50%, var(--deep-bg) 100%);
+}
+
+#menu.hidden { display: none; }
+
+.game-title {
+  font-size: 48px;
+  color: var(--bioluminescent);
+  text-shadow: 0 0 30px var(--bioluminescent), 0 0 60px var(--bioluminescent-dim);
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.game-subtitle {
+  font-size: 14px;
+  color: var(--text-dim);
+  letter-spacing: 4px;
+  margin-bottom: 40px;
+}
+
+.menu-box {
+  background: rgba(6, 26, 46, 0.9);
+  border: 1px solid var(--bioluminescent-dim);
+  border-radius: 12px;
+  padding: 30px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 280px;
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.1);
+}
+
+.menu-btn {
+  background: transparent;
+  border: 1px solid var(--bioluminescent-dim);
+  color: var(--text-primary);
+  padding: 12px 24px;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+  pointer-events: auto;
+}
+
+.menu-btn:hover, .menu-btn:focus {
+  background: rgba(0, 229, 255, 0.1);
+  border-color: var(--bioluminescent);
+  color: var(--bioluminescent);
+  outline: none;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+}
+
+.menu-btn:active { transform: scale(0.97); }
+
+.menu-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+/* High Scores in Menu */
+.high-scores-box {
+  border-top: 1px solid var(--bioluminescent-dim);
+  padding-top: 14px;
+  margin-top: 4px;
+}
+
+.high-scores-title {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.hs-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.hs-rank { color: var(--text-dim); min-width: 24px; }
+.hs-initials { color: var(--gold); letter-spacing: 2px; }
+.hs-score { color: var(--bioluminescent); }
+
+/* Overlay Screens (Pause / Game Over / Level Complete) */
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  background: rgba(3, 8, 16, 0.85);
+}
+
+#overlay.hidden { display: none; }
+
+.overlay-title {
+  font-size: 36px;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.overlay-title.game-over { color: var(--danger); text-shadow: 0 0 30px var(--danger); }
+.overlay-title.level-complete { color: #2ed573; text-shadow: 0 0 30px #2ed573; }
+.overlay-title.paused { color: var(--bioluminescent); text-shadow: 0 0 30px var(--bioluminescent); }
+
+.overlay-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+  font-size: 14px;
+  color: var(--text-primary);
+  letter-spacing: 1px;
+}
+
+.overlay-stats span { color: var(--bioluminescent); }
+
+/* Initial entry */
+#initials-input {
+  background: rgba(0, 229, 255, 0.05);
+  border: 1px solid var(--bioluminescent-dim);
+  color: var(--gold);
+  font-family: inherit;
+  font-size: 20px;
+  letter-spacing: 8px;
+  text-align: center;
+  padding: 10px 20px;
+  border-radius: 6px;
+  width: 100px;
+  text-transform: uppercase;
+  outline: none;
+  margin-bottom: 20px;
+}
+
+#initials-input:focus { border-color: var(--bioluminescent); box-shadow: 0 0 15px rgba(0,229,255,0.2); }
+
+/* Boss Health Bar */
+#boss-bar {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#boss-bar.visible { opacity: 1; }
+
+.boss-name {
+  font-size: 10px;
+  color: var(--danger);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.boss-bar-outer {
+  width: 100%;
+  height: 10px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid var(--danger);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.boss-bar-inner {
+  height: 100%;
+  background: linear-gradient(90deg, #ff3b3b, #ff6b6b);
+  box-shadow: 0 0 8px var(--danger);
+  border-radius: 5px;
+  transition: width 0.15s;
+}
+
+/* Mute indicator */
+#mute-indicator {
+  position: fixed;
+  top: 12px;
+  right: 20px;
+  z-index: 30;
+  font-size: 18px;
+  color: var(--text-dim);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#mute-indicator.visible { opacity: 1; }
+
+/* Combo display */
+#combo-display {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 32px;
+  color: var(--gold);
+  text-shadow: 0 0 20px var(--gold);
+  letter-spacing: 3px;
+  pointer-events: none;
+  z-index: 15;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+#combo-display.visible { opacity: 1; }
+
+/* Screen shake */
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-5px, 3px); }
+  50% { transform: translate(5px, -3px); }
+  75% { transform: translate(-3px, 5px); }
+}
+
+body.shake { animation: shake 0.15s ease-in-out; }
+
+/* Level complete bonus text */
+.bonus-text {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  color: var(--gold);
+  text-shadow: 0 0 20px var(--gold);
+  letter-spacing: 3px;
+  pointer-events: none;
+  z-index: 25;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.bonus-text.visible {
+  opacity: 1;
+  transform: translate(-50%, -80%);
+}
+
+/* How to play */
+.how-to-play {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.8;
+  letter-spacing: 1px;
+  max-width: 300px;
+}
+</style>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐋</text></svg>">
+</head>
+<body>
+
+<!-- Game Canvas -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- HUD Overlay -->
+<div id="hud">
+  <div class="hud-left">
+    <div class="hud-label">SCORE</div>
+    <div class="hud-value" id="hud-score">0</div>
+    <div class="hud-label">LEVEL</div>
+    <div class="hud-value" id="hud-level">1</div>
+  </div>
+  <div class="hud-center">
+    <div class="hud-label">COMBO</div>
+    <div class="hud-value gold" id="hud-combo">x1</div>
+    <div class="hunger-bar-container">
+      <div class="hunger-bar" id="hunger-bar"></div>
+    </div>
+  </div>
+  <div class="hud-right">
+    <div class="hud-label">LIVES</div>
+    <div class="lives-container" id="lives-container"></div>
+  </div>
+</div>
+
+<!-- Combo Flash Display -->
+<div id="combo-display"></div>
+
+<!-- Boss Health Bar -->
+<div id="boss-bar">
+  <div class="boss-name"></div>
+  <div class="boss-bar-outer">
+    <div class="boss-bar-inner" id="boss-bar-inner"></div>
+  </div>
+</div>
+
+<!-- Mute Indicator -->
+<div id="mute-indicator">🔇 MUTED</div>
+
+<!-- Main Menu -->
+<div id="menu">
+  <div class="game-title">ORCA</div>
+  <div class="game-subtitle">DEEP RUNNER</div>
+
+  <div class="menu-box">
+    <button class="menu-btn" id="btn-start">START GAME</button>
+
+    <div class="high-scores-box">
+      <div class="high-scores-title">HIGH SCORES</div>
+    </div>
+
+    <div class="how-to-play">
+      SWIM: WASD / ARROWS<br>
+      DASH: SHIFT / J<br>
+      PAUSE: P / ESC &nbsp;|&nbsp; MUTE: M<br>
+      MOBILE: TOUCH DRAG TO SWIM
+    </div>
+  </div>
+</div>
+
+<!-- Overlay (Pause / Game Over / Level Complete) -->
+<div id="overlay" class="hidden">
+  <div class="overlay-title paused">PAUSED</div>
+  <div class="overlay-stats"></div>
+
+  <div id="initials-input" style="display:none;">
+    <input type="text" id="initials-input" maxlength="3" placeholder="AAA" autocomplete="off" />
+  </div>
+
+  <div class="menu-box" style="min-width:240px;">
+    <button class="menu-btn" id="btn-resume">RESUME</button>
+    <button class="menu-btn" id="btn-restart">RESTART</button>
+    <button class="menu-btn" id="btn-main-menu">MAIN MENU</button>
+    <button class="menu-btn" id="btn-submit-score" style="display:none;">SUBMIT SCORE</button>
+  </div>
+</div>
+
+<!-- Script Tags — dependency order -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script type="module">
+// ─ js/engine/physics.js ─
+/**
+ * js/engine/physics.js
+ * Pure physics — DOM-free, node-testable.
+ * Vector2D, circle-circle and circle-rect collision, swimming physics.
+ */
+
+// ── Vector2D ──────────────────────────────────────────────────────────────────
+class Vector2D {
+  constructor(x = 0, y = 0) { this.x = x; this.y = y; }
+  set(x, y) { this.x = x; this.y = y; return this; }
+  add(v) { return new Vector2D(this.x + v.x, this.y + v.y); }
+  sub(v) { return new Vector2D(this.x - v.x, this.y - v.y); }
+  scale(s) { return new Vector2D(this.x * s, this.y * s); }
+  dot(v) { return this.x * v.x + this.y * v.y; }
+  length() { return Math.sqrt(this.x * this.x + this.y * this.y); }
+  lengthSq() { return this.x * this.x + this.y * this.y; }
+  normalize() {
+    const len = this.length();
+    return len > 0 ? this.scale(1 / len) : new Vector2D();
+  }
+  limit(max) { const len = this.length(); return len > max ? this.normalize().scale(max) : this.clone(); }
+  clone() { return new Vector2D(this.x, this.y); }
+  static dist(a, b) { const dx = b.x - a.x, dy = b.y - a.y; return Math.sqrt(dx * dx + dy * dy); }
+  static distSq(a, b) { const dx = b.x - a.x, dy = b.y - a.y; return dx * dx + dy * dy; }
+}
+
+// ── Collision Helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Circle-circle collision test.
+ * @param {object} a - { pos: Vector2D, radius: number }
+ * @param {object} b - { pos: Vector2D, radius: number }
+ * @returns {boolean}
+ */
+function circleCircle(a, b) {
+  const rSum = a.radius + b.radius;
+  return Vector2D.distSq(a.pos, b.pos) <= rSum * rSum;
+}
+
+/**
+ * Circle-AABB collision (e.g. orca vs a bounding rect obstacle).
+ * @param {object} circle - { pos: Vector2D, radius: number }
+ * @param {object} rect - { x, y, width, height } (top-left origin)
+ * @returns {boolean}
+ */
+function circleRect(circle, rect) {
+  const cx = circle.pos.x;
+  const cy = circle.pos.y;
+  const r = circle.radius;
+  const rx = rect.x;
+  const ry = rect.y;
+  const rw = rect.width;
+  const rh = rect.height;
+
+  const nearestX = Math.max(rx, Math.min(cx, rx + rw));
+  const nearestY = Math.max(ry, Math.min(cy, ry + rh));
+  const dx = cx - nearestX;
+  const dy = cy - nearestY;
+  return dx * dx + dy * dy <= r * r;
+}
+
+/**
+ * Closest point on a rect to a circle center (for collision response).
+ */
+function closestPointOnRect(circlePos, rect) {
+  return new Vector2D(
+    Math.max(rect.x, Math.min(circlePos.x, rect.x + rect.width)),
+    Math.max(rect.y, Math.min(circlePos.y, rect.y + rect.height))
+  );
+}
+
+// ── Swimming Physics ───────────────────────────────────────────────────────────
+
+/**
+ * Physics state for a swimming entity.
+ * NOT a class — just a factory that returns a plain object (DOM-free).
+ */
+function makeSwimState(x = 0, y = 0) {
+  return {
+    pos: new Vector2D(x, y),
+    vel: new Vector2D(0, 0),
+    acc: new Vector2D(0, 0),
+    radius: 20,
+    // constants (tune per entity)
+    mass: 1,
+    maxSpeed: 5,
+    swimForce: 0.6,
+    drag: 0.92,       // water resistance multiplier per frame (60fps baseline)
+    dragAir: 0.98,    // less drag in air (not used underwater but available)
+    turnRate: 0.15,   // max angular change per frame (unused for canvas — kept for logic)
+  };
+}
+
+/**
+ * Apply a directional swim force (e.g. from WASD input).
+ * @param {object} state - swim state object
+ * @param {Vector2D} direction - normalized input direction
+ * @param {number} [force] - magnitude (default from state.swimForce)
+ */
+function applySwimForce(state, direction, force) {
+  if (!direction || direction.lengthSq() < 0.0001) return;
+  const d = direction.normalize();
+  state.acc = state.acc.add(d.scale(force || state.swimForce));
+}
+
+/**
+ * Apply a dash burst force.
+ * @param {object} state
+ * @param {Vector2D} direction - normalized direction of dash
+ * @param {number} power - dash strength (e.g. 15)
+ */
+function applyDash(state, direction, power) {
+  if (!direction || direction.lengthSq() < 0.0001) return;
+  const d = direction.normalize();
+  state.vel = state.vel.add(d.scale(power));
+  // Clamp speed after dash
+  if (state.vel.length() > state.maxSpeed * 3) {
+    state.vel = state.vel.normalize().scale(state.maxSpeed * 3);
+  }
+}
+
+/**
+ * Integrate velocity from acceleration, apply drag, clamp speed.
+ * Call once per frame.
+ * @param {object} state
+ * @param {number} dt - delta time in seconds (default 1/60)
+ */
+function integratePhysics(state, dt = 1 / 60) {
+  // Apply acceleration
+  state.vel = state.vel.add(state.acc.scale(dt * 60));
+  // Apply drag
+  state.vel = state.vel.scale(state.drag);
+  // Clamp speed
+  state.vel = state.vel.limit(state.maxSpeed);
+  // Update position
+  state.pos = state.pos.add(state.vel.scale(dt * 60));
+  // Reset acceleration for next frame
+  state.acc = new Vector2D(0, 0);
+}
+
+/**
+ * Keep entity within bounds (world wrapping or clamping).
+ * @param {object} state
+ * @param {number} worldW
+ * @param {number} worldH
+ * @param {boolean} [wrap=true] - wrap around edges
+ */
+function keepInBounds(state, worldW, worldH, wrap = true) {
+  if (wrap) {
+    if (state.pos.x < -state.radius) state.pos.x = worldW + state.radius;
+    else if (state.pos.x > worldW + state.radius) state.pos.x = -state.radius;
+    if (state.pos.y < -state.radius) state.pos.y = worldH + state.radius;
+    else if (state.pos.y > worldH + state.radius) state.pos.y = -state.radius;
+  } else {
+    state.pos.x = Math.max(state.radius, Math.min(worldW - state.radius, state.pos.x));
+    state.pos.y = Math.max(state.radius, Math.min(worldH - state.radius, state.pos.y));
+  }
+}
+
+/**
+ * Separation force: steer away from nearby entities (boid-style).
+ * @param {object} self - entity with pos/radius
+ * @param {Array} others - entities with pos/radius
+ * @param {number} separationRadius
+ * @returns {Vector2D} separation force vector
+ */
+function separationForce(self, others, separationRadius) {
+  const force = new Vector2D();
+  let count = 0;
+  for (const other of others) {
+    if (other === self) continue;
+    const dist = Vector2D.dist(self.pos, other.pos);
+    if (dist < separationRadius && dist > 0) {
+      const away = self.pos.sub(other.pos).normalize().scale(1 / dist);
+      force.x += away.x;
+      force.y += away.y;
+      count++;
+    }
+  }
+  if (count > 0) {
+    return new Vector2D(force.x / count, force.y / count);
+  }
+  return force;
+}
+
+// ── Steering Behaviours (for AI) ──────────────────────────────────────────────
+
+/**
+ * Seek: steer toward a target position.
+ * @param {object} state
+ * @param {Vector2D} target
+ * @param {number} [maxForce]
+ */
+function seek(state, target, maxForce = 0.3) {
+  const desired = target.sub(state.pos).normalize().scale(state.maxSpeed);
+  const steer = desired.sub(state.vel);
+  return steer.limit(maxForce);
+}
+
+/**
+ * Flee: steer away from threat.
+ */
+function flee(state, threat, maxForce = 0.5) {
+  const away = state.pos.sub(threat.pos).normalize().scale(state.maxSpeed);
+  const steer = away.sub(state.vel);
+  return steer.limit(maxForce);
+}
+
+// ── Exports ────────────────────────────────────────────────────────────────────
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { Vector2D, circleCircle, circleRect, closestPointOnRect,
+    makeSwimState, applySwimForce, applyDash, integratePhysics, keepInBounds,
+    separationForce, seek, flee };
+}
+
+// ─ js/engine/pool.js ─
+/**
+ * js/engine/pool.js
+ * Generic object pool — DOM-free, node-testable.
+ * Usage: const pool = new Pool(() => ({ active: false, x: 0, y: 0 }), 200);
+ */
+
+class Pool {
+  /**
+   * @param {Function} factory - () => new empty object instance
+   * @param {number} initialSize - pre-allocate count
+   */
+  constructor(factory, initialSize = 0) {
+    this._factory = factory;
+    this._free = [];
+    this._active = [];
+    for (let i = 0; i < initialSize; i++) {
+      this._free.push(factory());
+    }
+  }
+
+  /** Acquire an object; returns null if pool exhausted and maxSize reached, or a fresh object. */
+  acquire() {
+    const obj = this._free.length > 0
+      ? this._free.pop()
+      : this._factory();
+
+    obj.active = true;
+    this._active.push(obj);
+    return obj;
+  }
+
+  /**
+   * Release a specific object back to the pool.
+   * @param {object} obj
+   */
+  release(obj) {
+    obj.active = false;
+    const idx = this._active.indexOf(obj);
+    if (idx !== -1) this._active.splice(idx, 1);
+    // Reset known fields before recycling
+    if (typeof obj.reset === 'function') {
+      obj.reset();
+    } else {
+      for (const k of Object.keys(obj)) {
+        if (k !== 'active') delete obj[k];
+      }
+    }
+    this._free.push(obj);
+  }
+
+  /** Release all active objects at once. */
+  releaseAll() {
+    while (this._active.length > 0) {
+      this.release(this._active[this._active.length - 1]);
+    }
+  }
+
+  /** Iterate active objects. */
+  forEach(fn) {
+    for (const obj of this._active) fn(obj);
+  }
+
+  /** @returns {number} count of currently active objects */
+  get activeCount() { return this._active.length; }
+
+  /** @returns {number} count of objects in the free list */
+  get freeCount() { return this._free.length; }
+}
+
+// Node / CommonJS export
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = Pool;
+}
+
+// ─ js/engine/input.js ─
+/**
+ * js/engine/input.js
+ * Keyboard + Touch input — DOM-dependent but lightweight.
+ * Exports a singleton InputManager.
+ */
+
+class InputManager {
+  constructor() {
+    this.keys = {};
+    this.prevKeys = {};
+    this.touchActive = false;
+    this.touchPos = { x: 0, y: 0 };
+    this.touchDelta = { x: 0, y: 0 };
+    this._touchStart = null;
+    this._boundKeydown = this._onKeyDown.bind(this);
+    this._boundKeyup = this._onKeyUp.bind(this);
+    this._boundTouchStart = this._onTouchStart.bind(this);
+    this._boundTouchMove = this._onTouchMove.bind(this);
+    this._boundTouchEnd = this._onTouchEnd.bind(this);
+  }
+
+  /** Call from canvas init. */
+  attach(canvas) {
+    window.addEventListener('keydown', this._boundKeydown);
+    window.addEventListener('keyup', this._boundKeyup);
+    canvas.addEventListener('touchstart', this._boundTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', this._boundTouchMove, { passive: false });
+    canvas.addEventListener('touchend', this._boundTouchEnd);
+    this._canvas = canvas;
+  }
+
+  detach() {
+    window.removeEventListener('keydown', this._boundKeydown);
+    window.removeEventListener('keyup', this._boundKeyup);
+    if (this._canvas) {
+      this._canvas.removeEventListener('touchstart', this._boundTouchStart);
+      this._canvas.removeEventListener('touchmove', this._boundTouchMove);
+      this._canvas.removeEventListener('touchend', this._boundTouchEnd);
+    }
+  }
+
+  _onKeyDown(e) {
+    this.keys[e.code] = true;
+    // Prevent arrow-key scrolling
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) {
+      e.preventDefault();
+    }
+  }
+
+  _onKeyUp(e) { this.keys[e.code] = false; }
+
+  _onTouchStart(e) {
+    e.preventDefault();
+    const t = e.touches[0];
+    this._touchStart = { x: t.clientX, y: t.clientY };
+    this.touchPos.x = t.clientX;
+    this.touchPos.y = t.clientY;
+    this.touchActive = true;
+    this.touchDelta.x = 0;
+    this.touchDelta.y = 0;
+  }
+
+  _onTouchMove(e) {
+    e.preventDefault();
+    const t = e.touches[0];
+    if (this._touchStart) {
+      this.touchDelta.x = t.clientX - this._touchStart.x;
+      this.touchDelta.y = t.clientY - this._touchStart.y;
+    }
+    this.touchPos.x = t.clientX;
+    this.touchPos.y = t.clientY;
+  }
+
+  _onTouchEnd(e) {
+    e.preventDefault();
+    this.touchActive = false;
+    this._touchStart = null;
+    this.touchDelta.x = 0;
+    this.touchDelta.y = 0;
+  }
+
+  /** Returns true on the frame the key is first pressed. */
+  isKeyPressed(code) {
+    return !this.prevKeys[code] && !!this.keys[code];
+  }
+
+  /** Returns true while the key is held. */
+  isKeyHeld(code) { return !!this.keys[code]; }
+
+  /** Returns normalized direction vector from keyboard. */
+  getKeyboardDir() {
+    let x = 0, y = 0;
+    if (this.isKeyHeld('ArrowLeft') || this.isKeyHeld('KeyA')) x -= 1;
+    if (this.isKeyHeld('ArrowRight') || this.isKeyHeld('KeyD')) x += 1;
+    if (this.isKeyHeld('ArrowUp') || this.isKeyHeld('KeyW')) y -= 1;
+    if (this.isKeyHeld('ArrowDown') || this.isKeyHeld('KeyS')) y += 1;
+    const len = Math.sqrt(x * x + y * y);
+    if (len > 0) return { x: x / len, y: y / len };
+    return { x: 0, y: 0 };
+  }
+
+  /** Returns normalized direction from touch drag (or {0,0}). */
+  getTouchDir() {
+    const THRESHOLD = 10;
+    const dx = this.touchDelta.x;
+    const dy = this.touchDelta.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < THRESHOLD) return { x: 0, y: 0 };
+    return { x: dx / len, y: dy / len };
+  }
+
+  /** Combined dir (keyboard wins if active, else touch). */
+  getDir() {
+    const kb = this.getKeyboardDir();
+    if (kb.x !== 0 || kb.y !== 0) return kb;
+    return this.getTouchDir();
+  }
+
+  /** True if dash pressed (Shift or J). */
+  isDashPressed() { return this.isKeyPressed('ShiftLeft') || this.isKeyPressed('ShiftRight') || this.isKeyPressed('KeyJ'); }
+
+  /** True if pause pressed (P or Escape). */
+  isPausePressed() { return this.isKeyPressed('KeyP') || this.isKeyPressed('Escape'); }
+
+  /** True if mute pressed (M). */
+  isMutePressed() { return this.isKeyPressed('KeyM'); }
+
+  /** Call at end of each frame. */
+  updatePrev() { this.prevKeys = { ...this.keys }; }
+}
+
+const inputManager = new InputManager();
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { InputManager, inputManager };
+}
+
+// ─ js/entities/orca.js ─
+/**
+ * js/entities/orca.js
+ * Player orca entity — physics state + game logic.
+ * Uses physics.js vector/pool primitives. DOM-free (no direct DOM access).
+ */
+
+
+const BASE_RADIUS = 22;
+const DASH_COST = 8;        // hunger cost per dash
+const DASH_POWER = 14;
+const INVINCIBLE_TIME = 2.5; // seconds
+const STARVE_THRESHOLD = 0;  // hunger reaches 0 = game over (handled by game)
+const GROWTH_THRESHOLDS = [0, 2000, 5000, 10000, 20000, 40000];
+const GROWTH_RADIUS_BONUS = 4; // per tier
+
+class Orca {
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
+  constructor(x, y) {
+    this.swim = makeSwimState(x, y);
+    this.swim.radius = BASE_RADIUS;
+    this.swim.maxSpeed = 5.5;
+    this.swim.swimForce = 0.65;
+    this.swim.drag = 0.90;
+
+    this.hunger = 1.0;            // 1 = full, 0 = starved
+    this.lives = 3;
+    this.score = 0;
+    this.combo = 1;
+    this.comboTimer = 0;          // seconds until combo resets
+    this.comboDecayRate = 1.5;    // seconds to keep combo alive
+    this.invincibleTimer = 0;
+    this.stunTimer = 0;
+    this.growthTier = 0;          // 0-based index into GROWTH_THRESHOLDS
+    this.isDashing = false;
+    this.dashCooldown = 0;
+    this.dashCooldownMax = 0.4;   // seconds
+    this.eatTimer = 0;            // brief flash on eat
+
+    // For combo multiplier math
+    this.lastEatTime = -999;
+    this.comboWindow = 1.8;       // seconds between eats to maintain combo
+  }
+
+  /** @returns {Vector2D} */
+  get pos() { return this.swim.pos; }
+  /** @returns {Vector2D} */
+  get vel() { return this.swim.vel; }
+  /** @returns {number} */
+  get radius() { return this.swim.radius + this.growthTier * GROWTH_RADIUS_BONUS; }
+
+  /**
+   * Attempt to dash in given direction.
+   * @param {Vector2D} dir
+   * @param {number} hunger - current hunger (0-1)
+   * @returns {boolean} true if dash executed
+   */
+  tryDash(dir, hunger) {
+    if (this.dashCooldown > 0 || this.stunTimer > 0) return false;
+    if (hunger < DASH_COST / 100) return false; // need at least 8% hunger
+    this.isDashing = true;
+    this.dashCooldown = this.dashCooldownMax;
+    this.hunger = Math.max(0, hunger - DASH_COST / 100);
+    applyDash(this.swim, dir, DASH_POWER);
+    return true;
+  }
+
+  /**
+   * Called each frame.
+   * @param {number} dt - delta seconds
+   * @param {{ x: number, y: number }} inputDir - normalized input
+   * @param {number} hungerDecayRate - per second drain (from level config)
+   * @param {number} worldW
+   * @param {number} worldH
+   */
+  update(dt, inputDir, hungerDecayRate, worldW, worldH) {
+    // Timers
+    if (this.invincibleTimer > 0) this.invincibleTimer -= dt;
+    if (this.stunTimer > 0) this.stunTimer -= dt;
+    if (this.dashCooldown > 0) this.dashCooldown -= dt;
+    if (this.eatTimer > 0) this.eatTimer -= dt;
+    if (this.isDashing && this.dashCooldown < this.dashCooldownMax * 0.5) this.isDashing = false;
+
+    // Combo decay
+    this.comboTimer -= dt;
+    if (this.comboTimer <= 0 && this.combo > 1) {
+      this.combo = 1;
+    }
+
+    if (this.stunTimer > 0) {
+      // Stunned: only drift, no input
+      integratePhysics(this.swim, dt);
+    } else {
+      // Apply swim input
+      if (inputDir.x !== 0 || inputDir.y !== 0) {
+        applySwimForce(this.swim, new Vector2D(inputDir.x, inputDir.y));
+      }
+      integratePhysics(this.swim, dt);
+    }
+
+    keepInBounds(this.swim, worldW, worldH, true);
+
+    // Hunger decay
+    this.hunger = Math.max(0, this.hunger - hungerDecayRate * dt);
+
+    // Growth check
+    for (let i = GROWTH_THRESHOLDS.length - 1; i >= 0; i--) {
+      if (this.score >= GROWTH_THRESHOLDS[i] && i > this.growthTier) {
+        this.growthTier = i;
+        break;
+      }
+    }
+  }
+
+  /**
+   * Register an eat event.
+   * @param {number} basePoints - raw point value of prey
+   * @param {number} currentTime - game time in seconds
+   * @returns {number} actual scored points (after combo)
+   */
+  eat(basePoints, currentTime) {
+    if (currentTime - this.lastEatTime < this.comboWindow) {
+      this.combo = Math.min(this.combo + 1, 10);
+    } else {
+      this.combo = 1;
+    }
+    this.lastEatTime = currentTime;
+    this.comboTimer = this.comboDecayRate;
+
+    const points = basePoints * this.combo;
+    this.score += points;
+    this.hunger = Math.min(1.0, this.hunger + 0.12);
+    this.eatTimer = 0.15;
+    return points;
+  }
+
+  /**
+   * Register a pearl eat.
+   * @param {number} basePoints
+   * @param {number} currentTime
+   * @returns {number}
+   */
+  eatPearl(basePoints, currentTime) {
+    this.combo = Math.min(this.combo + 2, 10);
+    this.lastEatTime = currentTime;
+    this.comboTimer = this.comboDecayRate;
+    const points = basePoints * this.combo;
+    this.score += points;
+    this.hunger = Math.min(1.0, this.hunger + 0.35);
+    this.eatTimer = 0.25;
+    return points;
+  }
+
+  /**
+   * Take a hit from predator.
+   * @returns {boolean} true if actually damaged (not invincible)
+   */
+  takeDamage() {
+    if (this.invincibleTimer > 0) return false;
+    this.lives--;
+    this.invincibleTimer = INVINCIBLE_TIME;
+    this.combo = 1;
+    this.comboTimer = 0;
+    return true;
+  }
+
+  /** Get knocked back by a predator hit. */
+  knockback(fromX, fromY) {
+    const dx = this.pos.x - fromX;
+    const dy = this.pos.y - fromY;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    this.swim.vel.x = (dx / len) * 8;
+    this.swim.vel.y = (dy / len) * 8;
+  }
+
+  /** Add lives after bonus (e.g. extra life item). */
+  addLife() { this.lives = Math.min(this.lives + 1, 5); }
+
+  /** Reset for new game. */
+  reset(x, y) {
+    this.swim.pos.set(x, y);
+    this.swim.vel.set(0, 0);
+    this.swim.acc = new Vector2D(0, 0);
+    this.hunger = 1.0;
+    this.lives = 3;
+    this.score = 0;
+    this.combo = 1;
+    this.comboTimer = 0;
+    this.invincibleTimer = 0;
+    this.stunTimer = 0;
+    this.growthTier = 0;
+    this.isDashing = false;
+    this.dashCooldown = 0;
+    this.lastEatTime = -999;
+    this.eatTimer = 0;
+  }
+}
+
+// Default export for convenience
+Orca;
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { Orca };
+}
+
+// ─ js/entities/prey.js ─
+/**
+ * js/entities/prey.js
+ * Prey fish entities with schooling boid behavior.
+ * 3 kinds: Fast (small, high speed, low pts), Medium, Slow (large, low speed, high pts).
+ * Pearl = rare bonus item.
+ */
+
+
+// ── Prey Kinds ────────────────────────────────────────────────────────────────
+
+const PREY_KINDS = {
+  fast: {
+    name: 'sardine',
+    radius: 8,
+    speed: 3.5,
+    points: 50,
+    color: '#ff9f43',
+    innerColor: '#ffeaa7',
+    schoolRadius: 60,
+    separationRadius: 20,
+    steerForce: 0.2,
+  },
+  medium: {
+    name: 'mackerel',
+    radius: 12,
+    speed: 2.2,
+    points: 100,
+    color: '#1e90ff',
+    innerColor: '#74b9ff',
+    schoolRadius: 80,
+    separationRadius: 28,
+    steerForce: 0.15,
+  },
+  slow: {
+    name: 'tuna',
+    radius: 18,
+    speed: 1.2,
+    points: 200,
+    color: '#2ed573',
+    innerColor: '#a8e6cf',
+    schoolRadius: 100,
+    separationRadius: 38,
+    steerForce: 0.08,
+  },
+};
+
+const PREY_TYPES = ['fast', 'medium', 'slow'];
+
+function makePrey() {
+  return {
+    active: false,
+    x: 0, y: 0,
+    vx: 0, vy: 0,
+    radius: 10,
+    speed: 2,
+    points: 100,
+    kind: 'medium',
+    color: '#1e90ff',
+    innerColor: '#74b9ff',
+    schoolRadius: 80,
+    separationRadius: 28,
+    steerForce: 0.15,
+    turnTimer: 0,
+    turnInterval: 1.5,
+    wanderAngle: 0,
+    eaten: false,
+    // for pearl
+    isPearl: false,
+    pearlRadius: 10,
+    pearlColor: '#e0f7ff',
+    pearlInner: '#ffffff',
+  };
+}
+
+class PreySystem {
+  constructor() {
+    this._pool = new Pool(makePrey, 150);
+  }
+
+  /**
+   * Spawn a prey at random position near edges.
+   * @param {string} kind - 'fast'|'medium'|'slow'
+   * @param {number} worldW
+   * @param {number} worldH
+   * @param {object} [opts] - speedMult, pearl
+   */
+  spawn(kind, worldW, worldH, opts = {}) {
+    const p = this._pool.acquire();
+    const def = PREY_KINDS[kind] || PREY_KINDS.medium;
+
+    // Spawn from edges
+    if (Math.random() < 0.5) {
+      p.x = Math.random() < 0.5 ? -30 : worldW + 30;
+      p.y = Math.random() * worldH;
+    } else {
+      p.x = Math.random() * worldW;
+      p.y = Math.random() < 0.5 ? -30 : worldH + 30;
+    }
+
+    const speedMult = opts.speedMult || 1;
+    p.vx = (Math.random() - 0.5) * def.speed * 2 * speedMult;
+    p.vy = (Math.random() - 0.5) * def.speed * 2 * speedMult;
+    p.radius = def.radius;
+    p.speed = def.speed * speedMult;
+    p.points = def.points;
+    p.kind = kind;
+    p.color = def.color;
+    p.innerColor = def.innerColor;
+    p.schoolRadius = def.schoolRadius;
+    p.separationRadius = def.separationRadius;
+    p.steerForce = def.steerForce;
+    p.turnTimer = 0;
+    p.turnInterval = 1.0 + Math.random() * 1.5;
+    p.wanderAngle = Math.random() * Math.PI * 2;
+    p.eaten = false;
+    p.isPearl = opts.pearl || false;
+    if (p.isPearl) {
+      p.radius = 12;
+      p.speed = 1.0;
+      p.points = 500;
+      p.color = '#e0f7ff';
+      p.innerColor = '#ffffff';
+    }
+    return p;
+  }
+
+  /**
+   * Update all prey (boid schooling).
+   * @param {number} dt
+   * @param {Array} school - array of prey to consider for flocking
+   * @param {number} worldW
+   * @param {number} worldH
+   */
+  update(dt, school, worldW, worldH) {
+    this._pool.forEach(p => {
+      if (!p.active) return;
+      // Wander turn
+      p.turnTimer -= dt;
+      if (p.turnTimer <= 0) {
+        p.wanderAngle += (Math.random() - 0.5) * Math.PI * 0.8;
+        p.turnTimer = p.turnInterval;
+      }
+
+      // Boid forces
+      let sx = 0, sy = 0, ax = 0, ay = 0;
+      let count = 0;
+
+      for (const other of school) {
+        if (!other.active || other === p) continue;
+        const dx = other.x - p.x;
+        const dy = other.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 1 || dist > p.schoolRadius) continue;
+
+        // Alignment: steer toward average velocity
+        ax += other.vx;
+        ay += other.vy;
+        count++;
+
+        // Cohesion: steer toward center of mass
+        sx += dx;
+        sy += dy;
+      }
+
+      if (count > 0) {
+        const norm = 1 / count;
+        // Alignment
+        const alignX = (ax * norm - p.vx) * p.steerForce;
+        const alignY = (ay * norm - p.vy) * p.steerForce;
+        // Cohesion
+        const cohesX = (sx * norm - p.x) * p.steerForce * 0.5;
+        const cohesY = (sy * norm - p.y) * p.steerForce * 0.5;
+        p.vx += alignX + cohesX;
+        p.vy += alignY + cohesY;
+      }
+
+      // Separation
+      const sep = separationForce(
+        { pos: new Vector2D(p.x, p.y), radius: p.radius },
+        school.filter(o => o.active && o !== p && !o.isPearl && !p.isPearl)
+          .map(o => ({ pos: new Vector2D(o.x, o.y), radius: o.radius })),
+        p.separationRadius
+      );
+      p.vx += sep.x * p.steerForce * 1.5;
+      p.vy += sep.y * p.steerForce * 1.5;
+
+      // Wander
+      p.vx += Math.cos(p.wanderAngle) * 0.3;
+      p.vy += Math.sin(p.wanderAngle) * 0.3;
+
+      // Speed limit
+      const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+      if (speed > p.speed) {
+        const scale = p.speed / speed;
+        p.vx *= scale;
+        p.vy *= scale;
+      }
+
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.99;
+      p.vy *= 0.99;
+
+      keepInBounds({ pos: { x: p.x, y: p.y, radius: p.radius } }, worldW, worldH, true);
+      p.x = p.x; p.y = p.y; // keepInBounds may modify pos object
+    });
+  }
+
+  /**
+   * @returns {Array} active prey
+   */
+  getActive() { return this._pool._active; }
+
+  get activeCount() { return this._pool.activeCount; }
+
+  /** Remove eaten prey, return to pool. */
+  release(prey) { this._pool.release(prey); }
+
+  clear() { this._pool.releaseAll(); }
+
+  forEach(fn) { this._pool.forEach(fn); }
+}
+
+const preySystem = new PreySystem();
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { PreySystem, preySystem, PREY_KINDS, PREY_TYPES };
+}
+
+// ─ js/entities/predator.js ─
+/**
+ * js/entities/predator.js
+ * Predators: sharks (chase AI) and jellyfish (vertical drift + stun).
+ * Boss jellyfish every 5th level.
+ */
+
+
+// ── Shark ──────────────────────────────────────────────────────────────────────
+
+class Shark {
+  constructor(x, y, opts = {}) {
+    this.x = x;
+    this.y = y;
+    this.vx = (Math.random() - 0.5) * 2;
+    this.vy = (Math.random() - 0.5) * 2;
+    this.radius = opts.radius || 26;
+    this.speed = opts.speed || 2.2;
+    this.type = 'shark';
+    this.color = '#495057';
+    this.finColor = '#343a40';
+    this.eyeColor = '#ff3b3b';
+    this.chaseRange = opts.chaseRange || 280;
+    this.steerForce = opts.steerForce || 0.22;
+    this.isStunned = false;
+    this.stunnedTimer = 0;
+    this.stunDuration = 2.0;
+    this.active = true;
+    this.wanderTimer = 0;
+    this.wanderInterval = 2.0;
+    this.wanderAngle = Math.random() * Math.PI * 2;
+  }
+
+  update(dt, playerX, playerY, worldW, worldH, speedMult = 1.0) {
+    if (!this.active) return;
+
+    if (this.isStunned) {
+      this.stunnedTimer -= dt;
+      if (this.stunnedTimer <= 0) { this.isStunned = false; }
+      this.x += this.vx * 0.5;
+      this.y += this.vy * 0.5;
+      this.vx *= 0.95;
+      this.vy *= 0.95;
+      return;
+    }
+
+    const dx = playerX - this.x;
+    const dy = playerY - this.y;
+    const distSq = dx * dx + dy * dy;
+    const chaseRangeSq = this.chaseRange * this.chaseRange;
+
+    if (distSq < chaseRangeSq) {
+      const dist = Math.sqrt(distSq) || 1;
+      const desiredX = (dx / dist) * this.speed * speedMult;
+      const desiredY = (dy / dist) * this.speed * speedMult;
+      this.vx += (desiredX - this.vx) * this.steerForce;
+      this.vy += (desiredY - this.vy) * this.steerForce;
+    } else {
+      this.wanderTimer -= dt;
+      if (this.wanderTimer <= 0) {
+        this.wanderAngle += (Math.random() - 0.5) * Math.PI * 0.6;
+        this.wanderTimer = this.wanderInterval;
+      }
+      this.vx += Math.cos(this.wanderAngle) * 0.15;
+      this.vy += Math.sin(this.wanderAngle) * 0.15;
+    }
+
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    const maxSpd = this.speed * speedMult;
+    if (speed > maxSpd) {
+      this.vx = (this.vx / speed) * maxSpd;
+      this.vy = (this.vy / speed) * maxSpd;
+    }
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    if (this.x < -this.radius * 2) this.x = worldW + this.radius;
+    if (this.x > worldW + this.radius * 2) this.x = -this.radius;
+    if (this.y < -this.radius * 2) this.y = worldH + this.radius;
+    if (this.y > worldH + this.radius * 2) this.y = -this.radius;
+  }
+
+  stun() {
+    this.isStunned = true;
+    this.stunnedTimer = this.stunDuration;
+  }
+
+  getHitbox() { return { x: this.x, y: this.y, radius: this.radius }; }
+}
+
+// ── Jellyfish ─────────────────────────────────────────────────────────────────
+
+class Jellyfish {
+  constructor(x, y, opts = {}) {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.radius = opts.radius || 20;
+    this.speed = opts.speed || 0.8;
+    this.type = 'jelly';
+    this.color = '#9b59b6';
+    this.finColor = '#8e44ad';
+    this.eyeColor = '#e8daef';
+    this.jellyPhase = Math.random() * Math.PI * 2;
+    this.jellyAmplitude = opts.amplitude || 1.2;
+    this.jellyFrequency = opts.frequency || 1.0;
+    this.stunDuration = opts.stunDuration || 2.0;
+    this.isStunned = false;
+    this.active = true;
+  }
+
+  update(dt, worldW, worldH) {
+    if (!this.active) return;
+
+    this.jellyPhase += dt * this.jellyFrequency * Math.PI * 2;
+    const baseVy = Math.sin(this.jellyPhase) * this.jellyAmplitude;
+    const vxDrift = Math.cos(this.jellyPhase * 0.3) * 0.4;
+
+    this.vy = baseVy;
+    this.vx = vxDrift;
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    if (this.y < this.radius) { this.y = this.radius; this.vy = Math.abs(this.vy); }
+    if (this.y > worldH - this.radius) { this.y = worldH - this.radius; this.vy = -Math.abs(this.vy); }
+    if (this.x < this.radius) { this.x = worldW - this.radius; }
+    if (this.x > worldW - this.radius) { this.x = this.radius; }
+  }
+
+  getHitbox() { return { x: this.x, y: this.y, radius: this.radius }; }
+}
+
+// ── Boss Jellyfish ─────────────────────────────────────────────────────────────
+
+class BossJellyfish {
+  constructor(x, y, maxHealth) {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.radius = 65;
+    this.speed = 1.2;
+    this.type = 'boss';
+    this.color = '#8b0000';
+    this.finColor = '#c0392b';
+    this.eyeColor = '#ff3b3b';
+    this.bossMaxHealth = maxHealth;
+    this.bossHealth = maxHealth;
+    this.isBoss = true;
+    this.jellyPhase = 0;
+    this.jellyAmplitude = 2.0;
+    this.jellyFrequency = 0.7;
+    this.hitCooldown = 0;
+    this.bossDamageFlash = 0;
+    this.attackTimer = 0;
+    this.attackInterval = 3.0;
+    this.phase = 'idle';
+    this.rushDir = { x: 0, y: 0 };
+    this.rushTimer = 0;
+    this.active = true;
+  }
+
+  update(dt, playerX, playerY, worldW, worldH) {
+    if (!this.active) return;
+    const p = this;
+
+    if (p.hitCooldown > 0) p.hitCooldown -= dt;
+    if (p.bossDamageFlash > 0) p.bossDamageFlash -= dt;
+
+    p.jellyPhase += dt * p.jellyFrequency * Math.PI * 2;
+    p.attackTimer -= dt;
+
+    const dx = playerX - p.x;
+    const dy = playerY - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    if (p.phase === 'idle') {
+      p.vx += (dx / dist) * 0.08;
+      p.vy += (dy / dist) * 0.08;
+      p.vy += Math.sin(p.jellyPhase) * 0.6;
+      p.vx += Math.cos(p.jellyPhase * 0.5) * 0.3;
+
+      if (p.attackTimer <= 0) {
+        p.phase = 'rushing';
+        p.rushDir = { x: dx / dist, y: dy / dist };
+        p.rushTimer = 0.8;
+        p.attackTimer = p.attackInterval;
+      }
+    } else if (p.phase === 'rushing') {
+      const rushSpeed = 5.0;
+      p.vx = p.rushDir.x * rushSpeed;
+      p.vy = p.rushDir.y * rushSpeed;
+      p.rushTimer -= dt;
+      if (p.rushTimer <= 0) p.phase = 'idle';
+    }
+
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vx *= 0.92;
+    p.vy *= 0.92;
+
+    const margin = p.radius;
+    if (p.x < margin) p.x = margin;
+    if (p.x > worldW - margin) p.x = worldW - margin;
+    if (p.y < margin) p.y = margin;
+    if (p.y > worldH - margin) p.y = worldH - margin;
+  }
+
+  takeDamage(amount = 1) {
+    if (this.hitCooldown > 0) return false;
+    this.bossHealth -= amount;
+    this.hitCooldown = 0.4;
+    this.bossDamageFlash = 0.2;
+    return true;
+  }
+
+  getHitbox() { return { x: this.x, y: this.y, radius: this.radius }; }
+
+  get healthPct() { return this.bossHealth / this.bossMaxHealth; }
+}
+
+// ── PredatorSystem ────────────────────────────────────────────────────────────
+
+class PredatorSystem {
+  constructor() {
+    this._sharks = [];
+    this._jellies = [];
+    this._boss = null;
+  }
+
+  clear() {
+    this._sharks = [];
+    this._jellies = [];
+    this._boss = null;
+  }
+
+  spawnShark(x, y, opts = {}) {
+    this._sharks.push(new Shark(x, y, opts));
+  }
+
+  spawnJelly(x, y, opts = {}) {
+    this._jellies.push(new Jellyfish(x, y, opts));
+  }
+
+  spawnBoss(x, y, health) {
+    this._boss = new BossJellyfish(x, y, health);
+    return this._boss;
+  }
+
+  update(dt, playerX, playerY, worldW, worldH, sharkSpeedMult = 1.0) {
+    for (const s of this._sharks) {
+      if (s.active) s.update(dt, playerX, playerY, worldW, worldH, sharkSpeedMult);
+    }
+    for (const j of this._jellies) {
+      if (j.active) j.update(dt, worldW, worldH);
+    }
+    if (this._boss && this._boss.active) {
+      this._boss.update(dt, playerX, playerY, worldW, worldH);
+    }
+  }
+
+  get sharks() { return this._sharks; }
+  get jellies() { return this._jellies; }
+  get boss() { return this._boss; }
+
+  get activeCount() {
+    let n = 0;
+    for (const s of this._sharks) if (s.active) n++;
+    for (const j of this._jellies) if (j.active) n++;
+    if (this._boss && this._boss.active) n++;
+    return n;
+  }
+}
+
+const predatorSystem = new PredatorSystem();
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { Shark, Jellyfish, BossJellyfish, PredatorSystem, predatorSystem };
+}
+
+// ─ js/systems/particles.js ─
+/**
+ * js/systems/particles.js
+ * Particle effects using the object pool.
+ * Particles are plain objects — rendering done in main.js.
+ */
+
+
+// ── Particle Types ─────────────────────────────────────────────────────────────
+
+const PARTICLE_DEFS = {
+  eat: { count: 8, speed: 3, life: 0.5, size: 4, color: '#2ed573' },
+  eatMedium: { count: 12, speed: 4, life: 0.6, size: 5, color: '#1e90ff' },
+  eatLarge: { count: 18, speed: 5, life: 0.7, size: 6, color: '#ffd700' },
+  pearl: { count: 20, speed: 6, life: 0.8, size: 5, color: '#e0f7ff' },
+  damage: { count: 15, speed: 4, life: 0.6, size: 4, color: '#ff3b3b' },
+  dash: { count: 12, speed: 7, life: 0.4, size: 3, color: '#00e5ff' },
+  stun: { count: 10, speed: 2, life: 1.2, size: 8, color: '#c8e6ff' },
+  bossHit: { count: 20, speed: 5, life: 0.5, size: 5, color: '#ff6b6b' },
+  bubble: { count: 4, speed: 1, life: 2.0, size: 6, color: '#a0d8ef' },
+  sparkle: { count: 6, speed: 2, life: 0.8, size: 3, color: '#ffd700' },
+};
+
+function makeParticle() {
+  return {
+    active: false,
+    x: 0, y: 0,
+    vx: 0, vy: 0,
+    life: 0, maxLife: 0,
+    size: 4, color: '#fff',
+    type: 'eat',
+  };
+}
+
+class ParticleSystem {
+  constructor() {
+    this._pool = new Pool(makeParticle, 300);
+  }
+
+  /**
+   * Spawn particles of given type at position.
+   * @param {string} type
+   * @param {number} x
+   * @param {number} y
+   * @param {object} [opts] - override def properties
+   */
+  spawn(type, x, y, opts = {}) {
+    const def = PARTICLE_DEFS[type];
+    if (!def) return;
+    const count = opts.count !== undefined ? opts.count : def.count;
+    for (let i = 0; i < count; i++) {
+      const p = this._pool.acquire();
+      const angle = Math.random() * Math.PI * 2;
+      const speed = (opts.speed !== undefined ? opts.speed : def.speed) * (0.5 + Math.random() * 0.5);
+      p.x = x;
+      p.y = y;
+      p.vx = Math.cos(angle) * speed;
+      p.vy = Math.sin(angle) * speed;
+      p.life = opts.life !== undefined ? opts.life : def.life;
+      p.maxLife = p.life;
+      p.size = def.size * (0.8 + Math.random() * 0.4);
+      p.color = opts.color || def.color;
+      p.type = type;
+    }
+  }
+
+  /**
+   * Update all active particles.
+   * @param {number} dt - delta time in seconds
+   * @param {number} worldW
+   * @param {number} worldH
+   */
+  update(dt, worldW, worldH) {
+    const toRelease = [];
+    this._pool.forEach(p => {
+      p.life -= dt;
+      if (p.life <= 0) { toRelease.push(p); return; }
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy -= 0.05; // slight upward buoyancy for bubbles
+      p.vx *= 0.98;
+      p.vy *= 0.98;
+      // wrap
+      if (p.x < 0) p.x = worldW;
+      if (p.x > worldW) p.x = 0;
+      if (p.y < 0) p.y = worldH;
+      if (p.y > worldH) p.y = 0;
+    });
+    for (const p of toRelease) this._pool.release(p);
+  }
+
+  /**
+   * @returns {number} active particle count
+   */
+  get activeCount() { return this._pool.activeCount; }
+
+  /** Release all particles. */
+  clear() { this._pool.releaseAll(); }
+}
+
+const particleSystem = new ParticleSystem();
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { ParticleSystem, particleSystem, PARTICLE_DEFS };
+}
+
+// ─ js/systems/audio.js ─
+/**
+ * js/systems/audio.js
+ * WebAudio synthesized SFX — zero audio files.
+ * All methods wrap in try/catch so game keeps working if audio is blocked.
+ */
+
+class AudioSystem {
+  constructor() {
+    this._ctx = null;
+    this._muted = false;
+    this._masterGain = null;
+  }
+
+  /** Call on first user gesture. */
+  init() {
+    try {
+      this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this._masterGain = this._ctx.createGain();
+      this._masterGain.gain.value = 0.4;
+      this._masterGain.connect(this._ctx.destination);
+    } catch (e) {
+      this._ctx = null;
+    }
+  }
+
+  /** Resume context if suspended (after user gesture). */
+  resume() {
+    try {
+      if (this._ctx && this._ctx.state === 'suspended') this._ctx.resume();
+    } catch (e) { /* ignore */ }
+  }
+
+  /** @param {boolean} muted */
+  setMuted(muted) { this._muted = muted; }
+
+  get muted() { return this._muted; }
+
+  _makeOsc(type, freq, duration, volume = 0.3, freqEnd = null, attack = 0.01, decay = 0.1) {
+    try {
+      if (!this._ctx || this._muted) return;
+      const osc = this._ctx.createOscillator();
+      const gain = this._ctx.createGain();
+      osc.connect(gain);
+      gain.connect(this._masterGain);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, this._ctx.currentTime);
+      if (freqEnd !== null) {
+        osc.frequency.exponentialRampToValueAtTime(freqEnd, this._ctx.currentTime + duration);
+      }
+      gain.gain.setValueAtTime(0, this._ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(volume, this._ctx.currentTime + attack);
+      gain.gain.exponentialRampToValueAtTime(0.001, this._ctx.currentTime + duration);
+      osc.start(this._ctx.currentTime);
+      osc.stop(this._ctx.currentTime + duration + 0.01);
+    } catch (e) { /* audio blocked */ }
+  }
+
+  _noise(duration, volume = 0.2) {
+    try {
+      if (!this._ctx || this._muted) return;
+      const bufferSize = this._ctx.sampleRate * duration;
+      const buf = this._ctx.createBuffer(1, bufferSize, this._ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      const src = this._ctx.createBufferSource();
+      src.buffer = buf;
+      const gain = this._ctx.createGain();
+      const filter = this._ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 800;
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(this._masterGain);
+      gain.gain.setValueAtTime(volume, this._ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this._ctx.currentTime + duration);
+      src.start();
+    } catch (e) { /* ignore */ }
+  }
+
+  /** Eat a small prey. */
+  eatSmall() {
+    this._makeOsc('sine', 520, 0.12, 0.25, 780);
+  }
+
+  /** Eat medium prey. */
+  eatMedium() {
+    this._makeOsc('sine', 440, 0.15, 0.3, 660);
+    setTimeout(() => this._makeOsc('sine', 660, 0.1, 0.15, 900), 60);
+  }
+
+  /** Eat large prey / bonus. */
+  eatLarge() {
+    this._makeOsc('sine', 350, 0.2, 0.3, 520);
+    setTimeout(() => this._makeOsc('sine', 520, 0.2, 0.2, 780), 80);
+    setTimeout(() => this._makeOsc('sine', 780, 0.15, 0.15, 1100), 160);
+  }
+
+  /** Eat pearl. */
+  eatPearl() {
+    this._makeOsc('sine', 800, 0.3, 0.3, 1400);
+    this._makeOsc('triangle', 1200, 0.25, 0.2, 1800);
+  }
+
+  /** Dash burst. */
+  dash() {
+    this._noise(0.15, 0.15);
+    this._makeOsc('sawtooth', 150, 0.2, 0.2, 80);
+  }
+
+  /** Take damage (shark hit). */
+  damage() {
+    this._noise(0.3, 0.3);
+    this._makeOsc('sawtooth', 200, 0.25, 0.3, 60);
+    this._makeOsc('square', 100, 0.2, 0.2, 50);
+  }
+
+  /** Stunned by jellyfish. */
+  stun() {
+    this._makeOsc('sine', 300, 0.4, 0.2, 150);
+    this._noise(0.5, 0.1);
+  }
+
+  /** Level complete. */
+  levelComplete() {
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((f, i) => {
+      setTimeout(() => this._makeOsc('sine', f, 0.3, 0.3, f * 1.5), i * 120);
+    });
+  }
+
+  /** Game over. */
+  gameOver() {
+    const notes = [400, 350, 300, 200];
+    notes.forEach((f, i) => {
+      setTimeout(() => this._makeOsc('sawtooth', f, 0.3, 0.25, f * 0.8), i * 150);
+    });
+  }
+
+  /** Boss spawn. */
+  bossAlert() {
+    this._makeOsc('sine', 100, 0.6, 0.4, 50);
+    setTimeout(() => this._makeOsc('sawtooth', 80, 0.8, 0.3, 40), 200);
+  }
+
+  /** Boss damage hit. */
+  bossHit() {
+    this._noise(0.1, 0.2);
+    this._makeOsc('square', 120, 0.15, 0.2, 60);
+  }
+
+  /** Menu select. */
+  menuSelect() {
+    this._makeOsc('sine', 600, 0.08, 0.15, 800);
+  }
+
+  /** Menu confirm. */
+  menuConfirm() {
+    this._makeOsc('sine', 440, 0.12, 0.2, 660);
+  }
+
+  /** Hunger warning (low). */
+  hungerWarning() {
+    this._makeOsc('sine', 200, 0.15, 0.15, 150);
+  }
+
+  /** Pearl bonus popup. */
+  pearlBonus() {
+    this._makeOsc('triangle', 1000, 0.2, 0.2, 1600);
+    setTimeout(() => this._makeOsc('sine', 1400, 0.15, 0.15, 2000), 80);
+  }
+}
+
+const audioSystem = new AudioSystem();
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { AudioSystem, audioSystem };
+}
+
+// ─ js/systems/save.js ─
+/**
+ * js/systems/save.js
+ * localStorage high-score table (top 5).
+ * Pure JS — localStorage guarded by try/catch for node compatibility.
+ */
+
+const SAVE_KEY = 'orca_deep_runner_scores';
+
+function _getStorage() {
+  try { return localStorage; } catch (e) { return null; }
+}
+
+/**
+ * @returns {Array<{initials: string, score: number}>}
+ */
+function loadHighScores() {
+  try {
+    const raw = _getStorage()?.getItem(SAVE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+
+/**
+ * Persist top-5 high scores.
+ * @param {Array} scores
+ */
+function saveHighScores(scores) {
+  try {
+    _getStorage()?.setItem(SAVE_KEY, JSON.stringify(scores));
+  } catch (e) { /* ignore */ }
+}
+
+/**
+ * Insert a score; returns new table.
+ * @param {string} initials - 3 chars
+ * @param {number} score
+ * @returns {Array} new top-5 table
+ */
+function insertHighScore(initials, score) {
+  const scores = loadHighScores();
+  scores.push({ initials: initials.toUpperCase().slice(0, 3), score });
+  scores.sort((a, b) => b.score - a.score);
+  const top5 = scores.slice(0, 5);
+  saveHighScores(top5);
+  return top5;
+}
+
+/**
+ * Check if score qualifies for top 5.
+ * @param {number} score
+ * @returns {boolean}
+ */
+function isHighScore(score) {
+  const scores = loadHighScores();
+  if (scores.length < 5) return true;
+  return score > scores[scores.length - 1].score;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { loadHighScores, saveHighScores, insertHighScore, isHighScore };
+}
+
+// ─ js/systems/levels.js ─
+/**
+ * js/systems/levels.js
+ * Level configuration and progression — DOM-free, node-testable.
+ * Boss every 5th level (5, 10, 15...).
+ */
+
+const LEVEL_DURATION = 60; // seconds per level
+
+/**
+ * Level config template:
+ * @typedef {Object} LevelConfig
+ * @property {number} preyCount - total prey spawn count
+ * @property {number} sharkCount
+ * @property {number} jellyCount
+ * @property {number} sharkSpeedMult - speed multiplier for sharks
+ * @property {number} preySpeedMult
+ * @property {number} hungerRate - hunger decay per second (0-1)
+ * @property {number} pearlChance - 0-1 probability per spawn
+ * @property {boolean} hasBoss
+ * @property {number} bossHealth - hit points for boss (if hasBoss)
+ */
+
+/** @type {LevelConfig[]} */
+const LEVEL_DEFS = [
+  // Level 1 — Gentle intro
+  {
+    preyCount: 20, sharkCount: 1, jellyCount: 1,
+    sharkSpeedMult: 0.8, preySpeedMult: 0.8,
+    hungerRate: 0.008,
+    pearlChance: 0.15,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 2
+  {
+    preyCount: 28, sharkCount: 2, jellyCount: 2,
+    sharkSpeedMult: 0.9, preySpeedMult: 0.9,
+    hungerRate: 0.010,
+    pearlChance: 0.12,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 3
+  {
+    preyCount: 35, sharkCount: 2, jellyCount: 3,
+    sharkSpeedMult: 1.0, preySpeedMult: 1.0,
+    hungerRate: 0.012,
+    pearlChance: 0.10,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 4
+  {
+    preyCount: 40, sharkCount: 3, jellyCount: 4,
+    sharkSpeedMult: 1.1, preySpeedMult: 1.05,
+    hungerRate: 0.014,
+    pearlChance: 0.08,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 5 — BOSS 1
+  {
+    preyCount: 30, sharkCount: 2, jellyCount: 3,
+    sharkSpeedMult: 1.0, preySpeedMult: 1.0,
+    hungerRate: 0.013,
+    pearlChance: 0.20,
+    hasBoss: true, bossHealth: 10,
+  },
+  // Level 6
+  {
+    preyCount: 45, sharkCount: 3, jellyCount: 4,
+    sharkSpeedMult: 1.2, preySpeedMult: 1.1,
+    hungerRate: 0.015,
+    pearlChance: 0.08,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 7
+  {
+    preyCount: 50, sharkCount: 4, jellyCount: 5,
+    sharkSpeedMult: 1.3, preySpeedMult: 1.15,
+    hungerRate: 0.016,
+    pearlChance: 0.07,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 8
+  {
+    preyCount: 55, sharkCount: 4, jellyCount: 5,
+    sharkSpeedMult: 1.4, preySpeedMult: 1.2,
+    hungerRate: 0.018,
+    pearlChance: 0.06,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 9
+  {
+    preyCount: 60, sharkCount: 5, jellyCount: 6,
+    sharkSpeedMult: 1.5, preySpeedMult: 1.25,
+    hungerRate: 0.020,
+    pearlChance: 0.05,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 10 — BOSS 2
+  {
+    preyCount: 40, sharkCount: 3, jellyCount: 4,
+    sharkSpeedMult: 1.3, preySpeedMult: 1.2,
+    hungerRate: 0.018,
+    pearlChance: 0.18,
+    hasBoss: true, bossHealth: 20,
+  },
+  // Level 11
+  {
+    preyCount: 65, sharkCount: 5, jellyCount: 6,
+    sharkSpeedMult: 1.6, preySpeedMult: 1.3,
+    hungerRate: 0.022,
+    pearlChance: 0.05,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 12
+  {
+    preyCount: 70, sharkCount: 6, jellyCount: 7,
+    sharkSpeedMult: 1.7, preySpeedMult: 1.35,
+    hungerRate: 0.024,
+    pearlChance: 0.04,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 13
+  {
+    preyCount: 75, sharkCount: 6, jellyCount: 7,
+    sharkSpeedMult: 1.8, preySpeedMult: 1.4,
+    hungerRate: 0.026,
+    pearlChance: 0.04,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 14
+  {
+    preyCount: 80, sharkCount: 7, jellyCount: 8,
+    sharkSpeedMult: 1.9, preySpeedMult: 1.45,
+    hungerRate: 0.028,
+    pearlChance: 0.03,
+    hasBoss: false, bossHealth: 0,
+  },
+  // Level 15 — BOSS 3
+  {
+    preyCount: 50, sharkCount: 4, jellyCount: 5,
+    sharkSpeedMult: 1.5, preySpeedMult: 1.3,
+    hungerRate: 0.024,
+    pearlChance: 0.15,
+    hasBoss: true, bossHealth: 35,
+  },
+  // Infinite scaling after 15
+];
+
+/**
+ * Get level config (1-indexed level number).
+ * Levels beyond 15 scale from level 15 with increasing difficulty.
+ */
+function getLevelConfig(level) {
+  if (level < 1) level = 1;
+  const idx = Math.min(level - 1, LEVEL_DEFS.length - 1);
+  const base = LEVEL_DEFS[idx];
+
+  if (level <= LEVEL_DEFS.length) return { ...base };
+
+  // Scale beyond defined levels
+  const extraLevels = level - LEVEL_DEFS.length;
+  return {
+    preyCount: Math.floor(base.preyCount + extraLevels * 3),
+    sharkCount: Math.min(12, base.sharkCount + Math.floor(extraLevels * 0.4)),
+    jellyCount: Math.min(12, base.jellyCount + Math.floor(extraLevels * 0.3)),
+    sharkSpeedMult: base.sharkSpeedMult + extraLevels * 0.05,
+    preySpeedMult: base.preySpeedMult + extraLevels * 0.04,
+    hungerRate: Math.min(0.05, base.hungerRate + extraLevels * 0.001),
+    pearlChance: Math.max(0.02, base.pearlChance - extraLevels * 0.003),
+    hasBoss: false, bossHealth: 0,
+  };
+}
+
+/**
+ * @param {number} level
+ * @returns {boolean}
+ */
+function isBossLevel(level) {
+  return level % 5 === 0;
+}
+
+/**
+ * Bonus score for completing a level.
+ * @param {number} level
+ * @returns {number}
+ */
+function levelBonus(level) {
+  return level * 500 + 1000;
+}
+
+/**
+ * @param {number} level
+ * @returns {string}
+ */
+function bossName(level) {
+  return `MEGA JELLY BOSS LV${level}`;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { LEVEL_DURATION, getLevelConfig, isBossLevel, levelBonus, bossName };
+}
+
+// ─ js/systems/hud.js ─
+/**
+ * js/systems/hud.js
+ * HUD DOM element management — minimal, DOM-dependent.
+ * Pure display logic; actual game state read from Game singleton.
+ */
+
+class HUDSystem {
+  constructor() {
+    this._elScore = document.getElementById('hud-score');
+    this._elCombo = document.getElementById('hud-combo');
+    this._elHunger = document.getElementById('hunger-bar');
+    this._elLevel = document.getElementById('hud-level');
+    this._elLives = document.getElementById('lives-container');
+    this._elBossBar = document.getElementById('boss-bar');
+    this._elBossInner = document.getElementById('boss-bar-inner');
+    this._elBossName = document.querySelector('.boss-name');
+    this._elMute = document.getElementById('mute-indicator');
+    this._elComboDisplay = document.getElementById('combo-display');
+    this._comboTimer = null;
+  }
+
+  show() { document.getElementById('hud').classList.add('visible'); }
+  hide() { document.getElementById('hud').classList.remove('visible'); }
+
+  /**
+   * @param {number} score
+   * @param {number} comboMultiplier
+   * @param {number} hunger 0-1
+   * @param {number} lives
+   * @param {number} level
+   */
+  update(score, comboMultiplier, hunger, lives, level) {
+    if (this._elScore) this._elScore.textContent = score.toLocaleString();
+    if (this._elCombo) this._elCombo.textContent = `x${comboMultiplier}`;
+    if (this._elHunger) this._elHunger.style.width = `${Math.max(0, hunger * 100)}%`;
+    if (this._elLevel) this._elLevel.textContent = level;
+    if (this._elLives) {
+      const icons = this._elLives.querySelectorAll('.orca-icon');
+      icons.forEach((ic, i) => {
+        ic.classList.toggle('lost', i >= lives);
+      });
+    }
+  }
+
+  /**
+   * Flash combo text briefly.
+   * @param {string} text e.g. "COMBO x5!"
+   */
+  showComboFlash(text) {
+    if (!this._elComboDisplay) return;
+    this._elComboDisplay.textContent = text;
+    this._elComboDisplay.classList.add('visible');
+    clearTimeout(this._comboTimer);
+    this._comboTimer = setTimeout(() => {
+      this._elComboDisplay.classList.remove('visible');
+    }, 800);
+  }
+
+  /**
+   * @param {boolean} visible
+   * @param {string} [name]
+   * @param {number} [pct] 0-1
+   */
+  setBossBar(visible, name, pct) {
+    if (!this._elBossBar) return;
+    this._elBossBar.classList.toggle('visible', visible);
+    if (name) this._elBossName.textContent = name;
+    if (pct !== undefined) this._elBossInner.style.width = `${Math.max(0, pct * 100)}%`;
+  }
+
+  /** Show mute icon. */
+  setMuted(muted) {
+    if (this._elMute) this._elMute.classList.toggle('visible', muted);
+  }
+
+  /** Build lives icons. */
+  buildLives(count) {
+    if (!this._elLives) return;
+    this._elLives.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const ic = document.createElement('div');
+      ic.className = 'orca-icon';
+      this._elLives.appendChild(ic);
+    }
+  }
+
+  /**
+   * Trigger screen shake on body.
+   * @param {number} [intensity] 1-5 (default 1)
+   */
+  shake(intensity = 1) {
+    document.body.classList.remove('shake');
+    void document.body.offsetWidth; // reflow to restart animation
+    document.body.classList.add('shake');
+    setTimeout(() => document.body.classList.remove('shake'), 150 * intensity);
+  }
+}
+
+const hudSystem = new HUDSystem();
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { HUDSystem, hudSystem };
+}
+
+// ─ js/main.js ─
+/**
+ * js/main.js
+ * Orca: Deep Runner — main game loop, state machine, canvas rendering.
+ * Integrates: orca, prey, predator, particle, audio, save, hud, levels.
+ */
+
+
+// ── Canvas & World ─────────────────────────────────────────────────────────
+
+const WORLD_W = 1280;
+const WORLD_H = 720;
+
+let canvas, ctx;
+let gameTime = 0;
+let levelTime = 0;
+let lastTime = 0;
+let animationId = null;
+
+// ── Game State ───────────────────────────────────────────────────────────────
+
+const STATE = {
+  MENU: 'menu',
+  PLAYING: 'playing',
+  PAUSED: 'paused',
+  LEVEL_COMPLETE: 'level-complete',
+  GAME_OVER: 'game-over',
+  GAME_CLEAR: 'game-clear',
+  ENTERING_NAME: 'entering-name',
+};
+
+let currentState = STATE.MENU;
+let player = null;
+let currentLevel = 1;
+let levelConfig = null;
+let spawnQueue = [];
+let spawnTimer = 0;
+let hungerWarningPlayed = false;
+let levelCompleteTimer = 0;
+let levelCompleteBonusApplied = false;
+let pendingHighScoreRank = null;
+
+// ── Background Layers (Parallax) ─────────────────────────────────────────────
+
+const BG_LAYERS = [
+  { speed: 0.1, color: '#020508', y: 0 },
+  { speed: 0.2, color: '#030a14', y: 0 },
+  { speed: 0.35, color: '#051525', y: 0 },
+];
+
+const LIGHT_RAYS = [];
+for (let i = 0; i < 6; i++) {
+  LIGHT_RAYS.push({
+    x: Math.random() * WORLD_W,
+    width: 40 + Math.random() * 80,
+    alpha: 0.03 + Math.random() * 0.05,
+    angle: -0.1 + Math.random() * 0.2,
+    speed: 0.05 + Math.random() * 0.05,
+    phase: Math.random() * Math.PI * 2,
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+function init() {
+  canvas = document.getElementById('gameCanvas');
+  ctx = canvas.getContext('2d');
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  inputManager.attach(canvas);
+  inputManager._canvas = canvas;
+  buildMenuHighScores();
+  transition(STATE.MENU);
+}
+
+function resizeCanvas() {
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+}
+
+// ── State Transitions ──────────────────────────────────────────────────────────
+
+function transition(newState, data) {
+  const prev = currentState;
+  currentState = newState;
+
+  if (newState === STATE.MENU) {
+    showMenu();
+  } else if (newState === STATE.PLAYING) {
+    hideAllOverlays();
+    hudSystem.show();
+    if (prev !== STATE.PLAYING) {
+      startLevel(data?.level || 1);
+    }
+  } else if (newState === STATE.PAUSED) {
+    showOverlay('PAUSED', 'paused');
+  } else if (newState === STATE.LEVEL_COMPLETE) {
+    hudSystem.hide();
+    showOverlay('LEVEL COMPLETE', 'level-complete');
+    audioSystem.levelComplete();
+    levelCompleteTimer = 0;
+    levelCompleteBonusApplied = false;
+  } else if (newState === STATE.GAME_OVER) {
+    hudSystem.hide();
+    audioSystem.gameOver();
+    if (player && isHighScore(player.score)) {
+      pendingHighScoreRank = null; // filled after name entry
+      showOverlay('GAME OVER', 'game-over');
+      showInitialsInput();
+    } else {
+      showOverlay('GAME OVER', 'game-over');
+    }
+  }
+}
+
+// ── Level Management ──────────────────────────────────────────────────────────
+
+function startLevel(level) {
+  currentLevel = level;
+  levelConfig = getLevelConfig(level);
+  levelTime = 0;
+  spawnQueue = [];
+  spawnTimer = 0;
+  hungerWarningPlayed = false;
+  levelCompleteBonusApplied = false;
+
+  if (!player) {
+    player = new Orca(WORLD_W / 2, WORLD_H / 2);
+  } else {
+    player.reset(WORLD_W / 2, WORLD_H / 2);
+  }
+
+  preySystem.clear();
+  predatorSystem.clear();
+  particleSystem.clear();
+  buildSpawnQueue();
+  hudSystem.buildLives(player.lives);
+
+  if (isBossLevel(level)) {
+    const boss = predatorSystem.spawnBoss(WORLD_W / 2, 150, levelConfig.bossHealth);
+    audioSystem.bossAlert();
+    hudSystem.setBossBar(true, bossName(level), 1.0);
+  } else {
+    hudSystem.setBossBar(false);
+  }
+}
+
+function buildSpawnQueue() {
+  const cfg = levelConfig;
+  const preyPerWave = 4;
+  for (let i = 0; i < cfg.preyCount; i++) {
+    const delay = Math.floor(i / preyPerWave) * 3.0;
+    const kinds = ['slow', 'medium', 'fast'];
+    const kind = kinds[i % 3];
+    spawnQueue.push({ type: 'prey', kind, delay });
+  }
+  for (let i = 0; i < cfg.sharkCount; i++) {
+    spawnQueue.push({ type: 'shark', delay: 2.0 + i * 4.0 });
+  }
+  for (let i = 0; i < cfg.jellyCount; i++) {
+    spawnQueue.push({ type: 'jelly', delay: 3.0 + i * 3.5 });
+  }
+  spawnQueue.sort((a, b) => a.delay - b.delay);
+}
+
+// ── Update ─────────────────────────────────────────────────────────────────────
+
+function update(dt) {
+  if (currentState === STATE.PLAYING) {
+    updatePlaying(dt);
+  } else if (currentState === STATE.LEVEL_COMPLETE) {
+    updateLevelComplete(dt);
+  }
+}
+
+function updatePlaying(dt) {
+  gameTime += dt;
+  levelTime += dt;
+
+  if (inputManager.isPausePressed()) {
+    transition(STATE.PAUSED);
+    return;
+  }
+
+  if (inputManager.isMutePressed()) {
+    audioSystem.setMuted(!audioSystem.muted);
+    hudSystem.setMuted(audioSystem.muted);
+    inputManager.updatePrev();
+    return;
+  }
+
+  const dir = inputManager.getDir();
+  const dashPressed = inputManager.isDashPressed();
+
+  if (dashPressed && player.dashCooldown <= 0 && player.stunTimer <= 0) {
+    const dashDir = new Vector2D(dir.x || 0.001, dir.y || 0.001);
+    if (player.tryDash(dashDir, player.hunger)) {
+      particleSystem.spawn('dash', player.pos.x, player.pos.y);
+      audioSystem.dash();
+    }
+  }
+
+  player.update(dt, dir, levelConfig.hungerRate, WORLD_W, WORLD_H);
+
+  if (player.hunger < 0.2 && !hungerWarningPlayed) {
+    audioSystem.hungerWarning();
+    hungerWarningPlayed = true;
+  }
+
+  if (player.hunger <= 0) {
+    transition(STATE.GAME_OVER);
+    return;
+  }
+
+  if (player.lives <= 0) {
+    transition(STATE.GAME_OVER);
+    return;
+  }
+
+  // Spawn queue
+  spawnTimer += dt;
+  while (spawnQueue.length > 0 && spawnQueue[0].delay <= spawnTimer) {
+    const item = spawnQueue.shift();
+    if (item.type === 'prey') {
+      const pearl = Math.random() < levelConfig.pearlChance;
+      preySystem.spawn(item.kind, WORLD_W, WORLD_H, { speedMult: levelConfig.preySpeedMult, pearl });
+    } else if (item.type === 'shark') {
+      const sx = Math.random() < 0.5 ? -40 : WORLD_W + 40;
+      const sy = Math.random() * WORLD_H;
+      predatorSystem.spawnShark(sx, sy, { speed: 2.2 * levelConfig.sharkSpeedMult });
+    } else if (item.type === 'jelly') {
+      const jx = Math.random() * WORLD_W;
+      const jy = -30;
+      predatorSystem.spawnJelly(jx, jy);
+    }
+  }
+
+  preySystem.update(dt, preySystem.getActive(), WORLD_W, WORLD_H);
+  predatorSystem.update(dt, player.pos.x, player.pos.y, WORLD_W, WORLD_H, levelConfig.sharkSpeedMult);
+  particleSystem.update(dt, WORLD_W, WORLD_H);
+
+  handlePreyCollisions();
+  handlePredatorCollisions();
+  handleBossCollisions();
+
+  if (isBossLevel(currentLevel) && predatorSystem.boss && !predatorSystem.boss.active) {
+    predatorSystem._boss = null;
+    hudSystem.setBossBar(false);
+  }
+
+  // Level complete check
+  if (!isBossLevel(currentLevel) && levelTime >= LEVEL_DURATION) {
+    transition(STATE.LEVEL_COMPLETE);
+    return;
+  }
+
+  if (isBossLevel(currentLevel) && (!predatorSystem.boss || !predatorSystem.boss.active)) {
+    transition(STATE.LEVEL_COMPLETE);
+    return;
+  }
+
+  hudSystem.update(player.score, player.combo, player.hunger, player.lives, currentLevel);
+
+  if (predatorSystem.boss && predatorSystem.boss.active) {
+    hudSystem.setBossBar(true, bossName(currentLevel), predatorSystem.boss.healthPct);
+  }
+
+  inputManager.updatePrev();
+}
+
+function handlePreyCollisions() {
+  const active = preySystem.getActive();
+  for (const prey of active) {
+    if (!prey.active || prey.eaten) continue;
+    const dist = Vector2D.dist(player.pos, new Vector2D(prey.x, prey.y));
+    if (dist < player.radius + prey.radius) {
+      prey.eaten = true;
+      const pts = player.eat(prey.points, gameTime);
+      audioSystem.eatSmall();
+      particleSystem.spawn('eat', prey.x, prey.y, { color: prey.color });
+      if (player.combo > 1) {
+        hudSystem.showComboFlash(`COMBO x${player.combo}!`);
+      }
+      preySystem.release(prey);
+    }
+  }
+}
+
+function handlePredatorCollisions() {
+  const sharks = predatorSystem.sharks;
+  const jellies = predatorSystem.jellies;
+  const boss = predatorSystem.boss;
+
+  for (const shark of sharks) {
+    if (!shark.active) continue;
+    const dist = Vector2D.dist(player.pos, new Vector2D(shark.x, shark.y));
+    if (dist < player.radius + shark.radius) {
+      if (player.takeDamage()) {
+        player.knockback(shark.x, shark.y);
+        audioSystem.damage();
+        particleSystem.spawn('damage', player.pos.x, player.pos.y);
+        hudSystem.shake(2);
+        shark.stun();
+      }
+    }
+  }
+
+  for (const jelly of jellies) {
+    if (!jelly.active) continue;
+    const dist = Vector2D.dist(player.pos, new Vector2D(jelly.x, jelly.y));
+    if (dist < player.radius + jelly.radius) {
+      if (player.stunTimer <= 0) {
+        player.stunTimer = 1.5;
+        player.knockback(jelly.x, jelly.y);
+        audioSystem.stun();
+        particleSystem.spawn('stun', player.pos.x, player.pos.y);
+        hudSystem.shake(1);
+      }
+    }
+  }
+
+  if (boss && boss.active) {
+    const dist = Vector2D.dist(player.pos, new Vector2D(boss.x, boss.y));
+    if (dist < player.radius + boss.radius) {
+      if (player.takeDamage()) {
+        player.knockback(boss.x, boss.y);
+        audioSystem.damage();
+        particleSystem.spawn('damage', player.pos.x, player.pos.y);
+        hudSystem.shake(3);
+        boss.takeDamage(1);
+        audioSystem.bossHit();
+        particleSystem.spawn('bossHit', player.pos.x, player.pos.y);
+      }
+    }
+  }
+}
+
+function handleBossCollisions() {
+  // handled in handlePredatorCollisions
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+
+function render() {
+  if (!ctx) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  const scaleX = w / WORLD_W;
+  const scaleY = h / WORLD_H;
+  const scale = Math.min(scaleX, scaleY);
+  const offsetX = (w - WORLD_W * scale) / 2;
+  const offsetY = (h - WORLD_H * scale) / 2;
+
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+
+  if (currentState === STATE.MENU) {
+    renderMenu();
+  } else {
+    renderGame();
+  }
+
+  ctx.restore();
+}
+
+function renderGame() {
+  // Background gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, WORLD_H);
+  grad.addColorStop(0, '#0a1f38');
+  grad.addColorStop(0.4, '#061425');
+  grad.addColorStop(1, '#020810');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+  // Parallax layers
+  const t = gameTime;
+  for (const layer of BG_LAYERS) {
+    const shift = (t * layer.speed * 20) % 100;
+    ctx.fillStyle = layer.color;
+    ctx.fillRect(-shift, 0, WORLD_W + 200, WORLD_H);
+  }
+
+  // Light rays
+  for (const ray of LIGHT_RAYS) {
+    const rx = ray.x + Math.sin(t * ray.speed + ray.phase) * 30;
+    const rw = ray.width;
+    const alpha = ray.alpha * (0.7 + 0.3 * Math.sin(t * 0.3 + ray.phase));
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#4fc3f7';
+    ctx.beginPath();
+    ctx.moveTo(rx, 0);
+    ctx.lineTo(rx + rw, 0);
+    ctx.lineTo(rx + rw * 0.3 + rw * 0.5, WORLD_H);
+    ctx.lineTo(rx - rw * 0.2, WORLD_H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Prey
+  preySystem.forEach(p => {
+    if (!p.active) return;
+    drawPrey(p);
+  });
+
+  // Predators
+  for (const shark of predatorSystem.sharks) {
+    if (shark.active) drawShark(shark);
+  }
+  for (const jelly of predatorSystem.jellies) {
+    if (jelly.active) drawJelly(jelly);
+  }
+  if (predatorSystem.boss && predatorSystem.boss.active) {
+    drawBoss(predatorSystem.boss);
+  }
+
+  // Orca
+  if (player) {
+    drawOrca(player);
+  }
+
+  // Particles
+  particleSystem._pool.forEach(p => {
+    if (!p.active) return;
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+}
+
+function drawPrey(p) {
+  const r = p.radius;
+  ctx.fillStyle = p.color;
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y, r * 1.4, r * 0.8, Math.atan2(p.vy, p.vx), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = p.innerColor;
+  ctx.beginPath();
+  ctx.ellipse(p.x - r * 0.2, p.y - r * 0.15, r * 0.5, r * 0.3, Math.atan2(p.vy, p.vx), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(p.x + r * 0.5, p.y - r * 0.1, r * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawShark(s) {
+  const r = s.radius;
+  const angle = Math.atan2(s.vy, s.vx);
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.rotate(angle);
+  if (s.isStunned) ctx.globalAlpha = 0.5;
+  ctx.fillStyle = s.color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * 1.6, r * 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = s.finColor;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.2, -r * 0.7);
+  ctx.lineTo(r * 0.3, -r * 1.4);
+  ctx.lineTo(r * 0.5, -r * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-r * 1.4, 0);
+  ctx.lineTo(-r * 2.1, -r * 0.6);
+  ctx.lineTo(-r * 1.8, 0);
+  ctx.lineTo(-r * 2.1, r * 0.6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = s.eyeColor;
+  ctx.beginPath();
+  ctx.arc(r * 0.7, -r * 0.2, r * 0.18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawJelly(j) {
+  const r = j.radius;
+  ctx.save();
+  ctx.translate(j.x, j.y);
+  ctx.fillStyle = j.color;
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r, r * 0.7, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.fillStyle = j.eyeColor;
+  ctx.globalAlpha = 0.4;
+  ctx.beginPath();
+  ctx.ellipse(0, -r * 0.1, r * 0.5, r * 0.3, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = j.finColor;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 5; i++) {
+    const tx = (i - 2) * r * 0.35;
+    const phase = j.jellyPhase + i * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(tx, r * 0.1);
+    ctx.quadraticCurveTo(tx + Math.sin(phase) * r * 0.4, r * 0.8, tx + Math.sin(phase + 1) * r * 0.3, r * 1.5);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBoss(b) {
+  const r = b.radius;
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  const flash = b.bossDamageFlash > 0;
+  const baseColor = flash ? '#ff6b6b' : b.color;
+  const finColor = flash ? '#ff9999' : b.finColor;
+  ctx.shadowColor = b.color;
+  ctx.shadowBlur = 30;
+  ctx.fillStyle = baseColor;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r, r * 0.75, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.fillStyle = finColor;
+  ctx.beginPath();
+  ctx.ellipse(0, -r * 0.1, r * 0.6, r * 0.35, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = finColor;
+  ctx.lineWidth = 4;
+  for (let i = 0; i < 7; i++) {
+    const tx = (i - 3) * r * 0.25;
+    const phase = b.jellyPhase + i * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(tx, r * 0.15);
+    ctx.quadraticCurveTo(tx + Math.sin(phase) * r * 0.5, r * 1.0, tx + Math.sin(phase + 1) * r * 0.4, r * 1.8);
+    ctx.stroke();
+  }
+  ctx.fillStyle = b.eyeColor;
+  ctx.beginPath();
+  ctx.arc(-r * 0.35, -r * 0.2, r * 0.15, 0, Math.PI * 2);
+  ctx.arc(r * 0.35, -r * 0.2, r * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawOrca(o) {
+  const r = o.radius;
+  const px = o.pos.x;
+  const py = o.pos.y;
+  const angle = Math.atan2(o.vel.y, o.vel.x);
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(angle);
+  if (o.invincibleTimer > 0 && Math.floor(o.invincibleTimer * 10) % 2 === 0) {
+    ctx.globalAlpha = 0.4;
+  }
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * 1.5, r * 0.75, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#e8e8f0';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.1, r * 0.15, r * 0.9, r * 0.45, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.5, -r * 0.15, r * 0.25, r * 0.18, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(r * 0.55, -r * 0.12, r * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.1, -r * 0.75);
+  ctx.lineTo(r * 0.2, -r * 1.5);
+  ctx.lineTo(r * 0.45, -r * 0.75);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-r * 1.3, 0);
+  ctx.lineTo(-r * 2.0, -r * 0.7);
+  ctx.lineTo(-r * 1.6, 0);
+  ctx.lineTo(-r * 2.0, r * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.2, r * 0.5, r * 0.5, r * 0.2, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  if (o.eatTimer > 0) {
+    ctx.strokeStyle = '#2ed573';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.8, r * 1.0, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── Menu Render ─────────────────────────────────────────────────────────────────
+
+function renderMenu() {
+  const grad = ctx.createLinearGradient(0, 0, 0, WORLD_H);
+  grad.addColorStop(0, '#0a1f38');
+  grad.addColorStop(0.5, '#061425');
+  grad.addColorStop(1, '#020810');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+  const t = Date.now() / 1000;
+  for (const ray of LIGHT_RAYS) {
+    const rx = ray.x + Math.sin(t * ray.speed + ray.phase) * 30;
+    const rw = ray.width;
+    const alpha = ray.alpha * 0.5;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#4fc3f7';
+    ctx.beginPath();
+    ctx.moveTo(rx, 0);
+    ctx.lineTo(rx + rw, 0);
+    ctx.lineTo(rx + rw * 0.3 + rw * 0.5, WORLD_H);
+    ctx.lineTo(rx - rw * 0.2, WORLD_H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.fillStyle = '#00e5ff';
+  ctx.font = 'bold 52px "Courier New"';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#00e5ff';
+  ctx.shadowBlur = 30;
+  ctx.fillText('ORCA', WORLD_W / 2, 180);
+  ctx.shadowBlur = 0;
+  ctx.font = '16px "Courier New"';
+  ctx.fillStyle = '#6b8fa3';
+  ctx.fillText('DEEP RUNNER', WORLD_W / 2, 215);
+  ctx.fillStyle = '#00e5ff';
+  ctx.font = '11px "Courier New"';
+  ctx.fillText('WASD / ARROWS TO SWIM  |  SHIFT/J TO DASH  |  P/ESC TO PAUSE', WORLD_W / 2, 250);
+  ctx.fillText('M TO MUTE  |  TOUCH DRAG ON MOBILE', WORLD_W / 2, 268);
+  ctx.textAlign = 'left';
+}
+
+// ── Overlay / Menu Helpers ──────────────────────────────────────────────────────
+
+function showOverlay(title, className) {
+  const el = document.getElementById('overlay');
+  const titleEl = el ? el.querySelector('.overlay-title') : null;
+  if (el) el.classList.remove('hidden');
+  if (titleEl) {
+    titleEl.textContent = title;
+    titleEl.className = 'overlay-title ' + (className || '');
+  }
+  const stats = el ? el.querySelector('.overlay-stats') : null;
+  if (stats && player) {
+    stats.innerHTML = `SCORE: <span>${player.score.toLocaleString()}</span>  |  LEVEL: <span>${currentLevel}</span>`;
+  }
+}
+
+function hideAllOverlays() {
+  const el = document.getElementById('overlay');
+  if (el) el.classList.add('hidden');
+  const initialsEl = document.getElementById('initials-input');
+  if (initialsEl) initialsEl.style.display = 'none';
+}
+
+function showInitialsInput() {
+  const el = document.getElementById('initials-input');
+  if (el) { el.style.display = 'block'; el.value = ''; el.focus(); }
+}
+
+function showBonusText(text) {
+  let el = document.querySelector('.bonus-text');
+  if (!el) { el = document.createElement('div'); el.className = 'bonus-text'; document.body.appendChild(el); }
+  el.textContent = text;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 2000);
+}
+
+function showMenu() {
+  const menu = document.getElementById('menu');
+  if (menu) menu.classList.remove('hidden');
+  hideAllOverlays();
+  hudSystem.hide();
+}
+
+function buildMenuHighScores() {
+  const box = document.querySelector('.high-scores-box');
+  if (!box) return;
+  const scores = loadHighScores();
+  let html = '';
+  if (scores.length === 0) {
+    html = '<div class="hs-row"><span class="hs-rank">—</span><span class="hs-initials">—</span><span class="hs-score">—</span></div>';
+  } else {
+    scores.forEach((s, i) => {
+      html += `<div class="hs-row"><span class="hs-rank">${i + 1}.</span><span class="hs-initials">${s.initials}</span><span class="hs-score">${s.score.toLocaleString()}</span></div>`;
+    });
+  }
+  const title = box.querySelector('.high-scores-title') || document.createElement('div');
+  title.className = 'high-scores-title';
+  title.textContent = 'HIGH SCORES';
+  box.innerHTML = '';
+  box.appendChild(title);
+  box.innerHTML += html;
+}
+
+// ── Menu Button Actions ────────────────────────────────────────────────────────
+
+function onStartGame() {
+  audioSystem.resume();
+  audioSystem.init();
+  audioSystem.menuConfirm();
+  currentLevel = 1;
+  startLevel(1);
+  transition(STATE.PLAYING);
+}
+
+function onResumeGame() {
+  audioSystem.menuConfirm();
+  transition(STATE.PLAYING);
+}
+
+function onRestartGame() {
+  audioSystem.menuConfirm();
+  startLevel(currentLevel);
+  transition(STATE.PLAYING);
+}
+
+function onMainMenu() {
+  audioSystem.menuSelect();
+  if (animationId) cancelAnimationFrame(animationId);
+  currentState = STATE.MENU;
+  player = null;
+  preySystem.clear();
+  predatorSystem.clear();
+  particleSystem.clear();
+  transition(STATE.MENU);
+}
+
+function onSubmitScore() {
+  const input = document.getElementById('initials-input');
+  const initials = input ? (input.value || 'AAA').toUpperCase().slice(0, 3) : 'AAA';
+  insertHighScore(initials, player.score);
+  const input2 = document.getElementById('initials-input');
+  if (input2) input2.style.display = 'none';
+  buildMenuHighScores();
+  currentState = STATE.MENU;
+  transition(STATE.MENU);
+}
+
+// ── Game Loop ──────────────────────────────────────────────────────────────────
+
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - (lastTime || timestamp)) / 1000, 0.05);
+  lastTime = timestamp;
+  update(dt);
+  render();
+  animationId = requestAnimationFrame(gameLoop);
+}
+
+function startGameLoop() {
+  if (animationId) cancelAnimationFrame(animationId);
+  lastTime = performance.now();
+  animationId = requestAnimationFrame(gameLoop);
+}
+
+// ── DOM-ready ───────────────────────────────────────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', () => {
+  init();
+
+  const btnStart = document.getElementById('btn-start');
+  if (btnStart) btnStart.addEventListener('click', onStartGame);
+
+  const btnResume = document.getElementById('btn-resume');
+  if (btnResume) btnResume.addEventListener('click', onResumeGame);
+
+  const btnRestart = document.getElementById('btn-restart');
+  if (btnRestart) btnRestart.addEventListener('click', onRestartGame);
+
+  const btnMainMenu = document.getElementById('btn-main-menu');
+  if (btnMainMenu) btnMainMenu.addEventListener('click', onMainMenu);
+
+  const btnSubmit = document.getElementById('btn-submit-score');
+  if (btnSubmit) btnSubmit.addEventListener('click', onSubmitScore);
+
+  const initialsInput = document.getElementById('initials-input');
+  if (initialsInput) {
+    initialsInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') onSubmitScore();
+    });
+  }
+
+  startGameLoop();
+});
+
+// ── Exports (for tests) ────────────────────────────────────────────────────────
+
+
+</script>
+</body>
+</html>
