@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Logic tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax-check every module
+        run: |
+          for f in $(find js -name '*.js'); do node --check "$f"; done
+          echo "all modules OK"
+
+      - name: Logic tests (90)
+        run: node tests/logic.test.mjs
+
+  build:
+    name: Single-file build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build dist/orca-deep-runner.html
+        run: python3 tools/build_single.py
+
+      - name: Bundle must be valid ES module
+        run: |
+          python3 - <<'EOF'
+          from pathlib import Path
+          h = Path('dist/orca-deep-runner.html').read_text(encoding='utf-8')
+          bundle = h.split('<script type="module">')[1].split('</script>')[0]
+          Path('/tmp/bundle.mjs').write_text(bundle, encoding='utf-8')
+          print('bundle chars:', len(bundle))
+          EOF
+          node --check /tmp/bundle.mjs
